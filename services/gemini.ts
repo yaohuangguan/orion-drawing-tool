@@ -15,11 +15,11 @@ RULES:
 `;
 
 export const generateSVGWithAI = async (prompt: string, currentCode: string): Promise<string> => {
-  if (!process.env.API_KEY) {
+  if (!process.env.GEMINI_API_KEY) {
     throw new Error("API Key is missing.");
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   
   // Construct the full prompt context
   const fullPrompt = `

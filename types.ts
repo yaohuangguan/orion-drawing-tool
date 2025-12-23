@@ -41,3 +41,19 @@ export interface Artboard {
   presetName: string;
   createdAt: number;
 }
+
+export interface User {
+  id: string;
+  displayName: string;
+  email: string;
+  phone?: string;
+  vip: boolean;
+  // Add other fields from backend payload if needed
+}
+
+export interface AuthState {
+  user: User | null;
+  token: string | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+}

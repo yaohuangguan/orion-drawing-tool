@@ -5,11 +5,14 @@ import { Toolbar } from './components/Toolbar';
 import { Library } from './components/Library';
 import { AIPanel } from './components/AIPanel';
 import { ContextMenu } from './components/ContextMenu';
+import { AuthModal } from './components/AuthModal';
+import { UserProfileModal } from './components/UserProfileModal';
 import { downloadSVG, downloadPNG } from './utils/export';
 import { ToolType, DrawingSettings, CanvasPreset, Language, Artboard } from './types';
 import { saveProject, loadProject } from './utils/storage';
 import { useHistory } from './hooks/useHistory';
 import { translations } from './utils/translations';
+import { useAuth } from './contexts/AuthContext';
 
 const PRESETS: CanvasPreset[] = [
   { name: 'default', width: 800, height: 600, label: 'Default' },
@@ -37,6 +40,11 @@ const App: React.FC = () => {
   // Language State - Default to 'zh' (Chinese)
   const [lang, setLang] = useState<Language>('zh');
   const t = translations[lang];
+  
+  // Auth Logic
+  const { isAuthenticated, user, checkExportLimit, recordExportUsage, remainingGuestExports } = useAuth();
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   // Artboard State
   const [artboards, setArtboards] = useState<Artboard[]>([]);
@@ -203,18 +211,31 @@ const App: React.FC = () => {
   }, []);
 
   const handleDownloadSVG = () => {
+    if (!checkExportLimit()) {
+        alert(translations[lang].limits.guestExportLimit);
+        setIsAuthModalOpen(true);
+        return;
+    }
     const activeBoard = artboards.find(b => b.id === activeArtboardId);
     const name = activeBoard ? activeBoard.name.replace(/\s+/g, '-').toLowerCase() : 'orion-x';
     downloadSVG(svgCode, `${name}-${Date.now()}.svg`);
+    recordExportUsage();
   };
 
   const handleDownloadPNG = () => {
+    if (!checkExportLimit()) {
+        alert(translations[lang].limits.guestExportLimit);
+        setIsAuthModalOpen(true);
+        setIsExportMenuOpen(false);
+        return;
+    }
     const scale = exportQuality === 'hd' ? 2 : 1;
     const finalSize = exportSize * scale;
     const activeBoard = artboards.find(b => b.id === activeArtboardId);
     const name = activeBoard ? activeBoard.name.replace(/\s+/g, '-').toLowerCase() : 'orion-x';
     const filename = `${name}-${exportSize}x${exportSize}-${exportQuality}-${Date.now()}.png`;
     downloadPNG(svgCode, finalSize, finalSize, filename);
+    recordExportUsage();
     setIsExportMenuOpen(false);
   };
 
@@ -240,6 +261,18 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen bg-white text-gray-900">
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={() => setIsAuthModalOpen(false)} 
+        lang={lang} 
+      />
+
+      <UserProfileModal 
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        lang={lang}
+      />
+
       <ContextMenu 
         {...contextMenu} 
         onClose={() => setContextMenu({ ...contextMenu, visible: false })}
@@ -281,6 +314,29 @@ const App: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 md:gap-4">
+           
+           {/* Auth Button */}
+           {isAuthenticated && user ? (
+               <div className="flex items-center gap-2 mr-2">
+                   <button 
+                       onClick={() => setIsProfileModalOpen(true)}
+                       className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors group"
+                   >
+                       <div className="w-6 h-6 rounded-full bg-brand-100 text-brand-600 flex items-center justify-center text-xs font-bold border border-brand-200">
+                           {user.displayName.charAt(0).toUpperCase()}
+                       </div>
+                       <span className="text-xs font-bold text-gray-700 group-hover:text-gray-900">{user.displayName}</span>
+                   </button>
+               </div>
+           ) : (
+               <button 
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="mr-2 px-3 py-1.5 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors"
+               >
+                   {translations[lang].auth.login}
+               </button>
+           )}
+
            {/* Language Toggle */}
            <button 
              onClick={() => setLang(lang === 'en' ? 'zh' : 'en')}
@@ -318,9 +374,14 @@ const App: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
                 onClick={handleDownloadSVG}
-                className="hidden md:flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                className="hidden md:flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors relative group"
             >
                 {t.exportSvg}
+                {!isAuthenticated && (
+                    <span className="absolute -bottom-6 right-0 text-[10px] text-gray-400 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                        {remainingGuestExports} left
+                    </span>
+                )}
             </button>
             
             <div className="relative" ref={exportMenuRef}>
@@ -391,6 +452,11 @@ const App: React.FC = () => {
                     </div>
 
                     <div className="pt-2 border-t border-gray-100">
+                         {!isAuthenticated && (
+                             <div className="mb-2 text-xs text-center text-gray-500">
+                                 {translations[lang].limits.remainingExports} <span className="font-bold text-gray-800">{remainingGuestExports}</span>
+                             </div>
+                         )}
                         <button
                             onClick={handleDownloadPNG}
                             className="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-bold rounded-lg shadow-md transition-all active:scale-95"
@@ -459,7 +525,12 @@ const App: React.FC = () => {
             <div className="flex-1 overflow-hidden relative">
                 <Editor code={svgCode} onChange={setSvgCode} t={t} />
             </div>
-            <AIPanel currentCode={svgCode} onCodeGenerated={setSvgCode} t={t} />
+            <AIPanel 
+                currentCode={svgCode} 
+                onCodeGenerated={setSvgCode} 
+                t={t} 
+                lang={lang}
+            />
             </div>
         )}
       </main>

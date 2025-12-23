@@ -59,6 +59,44 @@ export const translations = {
         a4: 'A4 Paper',
         mobile: 'Mobile Screen',
         icon: 'Icon (512px)'
+    },
+    auth: {
+      login: 'Login',
+      register: 'Register',
+      logout: 'Logout',
+      email: 'Email',
+      phone: 'Phone (Optional)',
+      password: 'Password',
+      confirmPassword: 'Confirm Password',
+      displayName: 'Display Name',
+      or: 'OR',
+      submit: 'Submit',
+      loginTitle: 'Welcome Back',
+      registerTitle: 'Create Account',
+      loginSwitch: "Don't have an account? Register",
+      registerSwitch: 'Already have an account? Login',
+      loginSuccess: 'Login Successful',
+      registerSuccess: 'Registration Successful',
+      logoutSuccess: 'Logged out successfully'
+    },
+    limits: {
+      guestExportLimit: 'Guest Export Limit Reached (10/day). Please login to export unlimited images.',
+      guestAiLocked: 'Please login to use AI generation.',
+      userAiLimit: 'Daily AI Limit Reached (5/day). Come back tomorrow!',
+      remainingAi: 'AI Gens Left today:',
+      remainingExports: 'Guest Exports Left today:'
+    },
+    profile: {
+      title: 'User Profile',
+      accountInfo: 'Account Info',
+      quotaInfo: 'Daily Quota Usage',
+      aiGeneration: 'AI Generation',
+      exportImage: 'Image Export',
+      unlimited: 'Unlimited',
+      used: 'Used',
+      remaining: 'Remaining',
+      dailyLimit: 'Daily Limit',
+      times: 'times'
     }
   },
   zh: {
@@ -121,6 +159,44 @@ export const translations = {
         a4: 'A4 纸',
         mobile: '手机屏幕',
         icon: '图标 (512px)'
+    },
+    auth: {
+      login: '登录',
+      register: '注册',
+      logout: '退出登录',
+      email: '邮箱 / 手机号',
+      phone: '手机号 (选填)',
+      password: '密码',
+      confirmPassword: '确认密码',
+      displayName: '昵称',
+      or: '或',
+      submit: '提交',
+      loginTitle: '欢迎回来',
+      registerTitle: '创建账号',
+      loginSwitch: '还没有账号？去注册',
+      registerSwitch: '已有账号？去登录',
+      loginSuccess: '登录成功',
+      registerSuccess: '注册成功',
+      logoutSuccess: '已退出登录'
+    },
+    limits: {
+      guestExportLimit: '游客导出次数已达上限 (10次/天)。请登录以解锁无限导出。',
+      guestAiLocked: '请登录后使用 AI 生成功能。',
+      userAiLimit: '今日 AI 生成次数已达上限 (5次/天)。请明天再来！',
+      remainingAi: '今日剩余 AI 生成:',
+      remainingExports: '今日剩余游客导出:'
+    },
+    profile: {
+      title: '个人中心',
+      accountInfo: '账户信息',
+      quotaInfo: '今日配额',
+      aiGeneration: 'AI 生成',
+      exportImage: '图片导出',
+      unlimited: '无限',
+      used: '已用',
+      remaining: '剩余',
+      dailyLimit: '每日上限',
+      times: '次'
     }
   }
 };

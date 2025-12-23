@@ -1,5 +1,8 @@
-import React from 'react';
-import { ToolType, DrawingSettings, BrushType, CanvasPreset } from '../types';
+import React, { useState } from 'react';
+import { ToolType, DrawingSettings, BrushType, CanvasPreset, Artboard } from '../types';
+import { translations } from '../utils/translations';
+
+type Translation = typeof translations.en;
 
 interface ToolbarProps {
   activeTool: ToolType;
@@ -9,6 +12,14 @@ interface ToolbarProps {
   canvasPreset: CanvasPreset;
   onSelectCanvasPreset: (preset: CanvasPreset) => void;
   presets: CanvasPreset[];
+  t: Translation;
+  // Artboard Props
+  artboards: Artboard[];
+  activeArtboardId: string;
+  onSwitchArtboard: (id: string) => void;
+  onAddArtboard: () => void;
+  onDeleteArtboard: (id: string) => void;
+  onRenameArtboard: (id: string, newName: string) => void;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({ 
@@ -18,48 +29,73 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onUpdateSettings,
   canvasPreset,
   onSelectCanvasPreset,
-  presets
+  presets,
+  t,
+  artboards,
+  activeArtboardId,
+  onSwitchArtboard,
+  onAddArtboard,
+  onDeleteArtboard,
+  onRenameArtboard
 }) => {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+
+  const handleStartEdit = (board: Artboard) => {
+    setEditingId(board.id);
+    setEditName(board.name);
+  };
+
+  const handleFinishEdit = () => {
+    if (editingId) {
+      onRenameArtboard(editingId, editName);
+      setEditingId(null);
+    }
+  };
+
   const tools: { id: ToolType; icon: React.ReactNode; label: string }[] = [
     {
       id: 'select',
-      label: 'Select (V)',
+      label: t.toolLabels.select,
       icon: <path d="M7 2l12 11.2-5.8.5 3.3 7.3-2.2.9-3.2-7.4-4.4 4.6V2z" />
     },
     {
       id: 'brush',
-      label: 'Draw (B)',
+      label: t.toolLabels.brush,
       icon: <path d="M12 21a9 9 0 0 0 9-9c0-3.3-2.7-6-6-6-2 0-3.7 1-5 2.5a5.9 5.9 0 0 0-5 2.5c-2 3-1.6 5.8 1 7l-.5.5" />
     },
     {
       id: 'eraser',
-      label: 'Eraser (E)',
+      label: t.toolLabels.eraser,
       icon: <path d="M20 20.75L15.25 16 19 12.25 13 6.25 9.25 10 4.5 5.25 1.5 8.25c0 0-1 4.5 3.5 9 3.25 3.25 6 3.5 6 3.5L14.75 20.75H20zM13.75 7L18.25 11.5 14.5 15.25 10 10.75 13.75 7z" />
     },
     {
       id: 'rect',
-      label: 'Rectangle (R)',
+      label: t.toolLabels.rect,
       icon: <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
     },
     {
       id: 'circle',
-      label: 'Circle (C)',
+      label: t.toolLabels.circle,
       icon: <circle cx="12" cy="12" r="10" />
     },
     {
       id: 'text',
-      label: 'Text (T)',
+      label: t.toolLabels.text,
       icon: <path d="M4 6h16M4 12h16M4 18h7" />
     }
   ];
 
   const brushes: { id: BrushType; label: string; previewClass: string }[] = [
-    { id: 'pen', label: 'Ink Pen', previewClass: 'rounded-full' },
-    { id: 'pencil', label: 'Pencil', previewClass: 'bg-gray-400 opacity-80' },
-    { id: 'marker', label: 'Marker', previewClass: 'rounded-sm opacity-60' },
-    { id: 'highlighter', label: 'Highlighter', previewClass: 'rounded-none opacity-40 h-3' },
-    { id: 'chalk', label: 'Chalk', previewClass: 'border-dashed border-2' },
-    { id: 'spray', label: 'Spray', previewClass: 'blur-[1px]' },
+    { id: 'pen', label: t.brushLabels.pen, previewClass: 'rounded-full' },
+    { id: 'pencil', label: t.brushLabels.pencil, previewClass: 'bg-gray-400 opacity-80' },
+    { id: 'marker', label: t.brushLabels.marker, previewClass: 'rounded-sm opacity-60' },
+    { id: 'watercolor', label: t.brushLabels.watercolor, previewClass: 'rounded-full opacity-40 blur-[1px]' },
+    { id: 'oil', label: t.brushLabels.oil, previewClass: 'rounded-sm border-t-2 border-white/50' },
+    { id: 'charcoal', label: t.brushLabels.charcoal, previewClass: 'border-dashed border-2 opacity-90' },
+    { id: 'highlighter', label: t.brushLabels.highlighter, previewClass: 'rounded-none opacity-40 h-3' },
+    { id: 'chalk', label: t.brushLabels.chalk, previewClass: 'border-dashed border-2' },
+    { id: 'spray', label: t.brushLabels.spray, previewClass: 'blur-[1px]' },
   ];
 
   const colors = [
@@ -70,9 +106,70 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-200 w-[300px] shrink-0 z-20 shadow-sm">
-      {/* Canvas Size Section */}
+      {/* Artboard Management Section */}
       <div className="p-4 border-b border-gray-100 bg-gray-50/50">
-        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Artboard</h2>
+        <div className="flex items-center justify-between mb-3">
+             <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t.artboards}</h2>
+             <button 
+                onClick={onAddArtboard}
+                className="p-1 rounded hover:bg-white hover:shadow-sm text-brand-600 transition-all"
+                title={t.newArtboard}
+             >
+                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                 </svg>
+             </button>
+        </div>
+        <div className="flex flex-col gap-2 max-h-32 overflow-y-auto custom-scrollbar pr-1">
+            {artboards.map((board) => (
+                <div 
+                    key={board.id}
+                    className={`group flex items-center justify-between p-2 rounded-lg text-sm border transition-all cursor-pointer
+                        ${activeArtboardId === board.id 
+                            ? 'bg-white border-brand-500 shadow-sm ring-1 ring-brand-100' 
+                            : 'bg-transparent border-transparent hover:bg-white hover:border-gray-200'}`}
+                    onClick={() => onSwitchArtboard(board.id)}
+                    onDoubleClick={() => handleStartEdit(board)}
+                >
+                    {editingId === board.id ? (
+                      <input 
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        onBlur={handleFinishEdit}
+                        onKeyDown={(e) => e.key === 'Enter' && handleFinishEdit()}
+                        autoFocus
+                        className="w-full bg-white border border-brand-300 rounded px-1 outline-none text-gray-900"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span className={`truncate font-medium select-none ${activeArtboardId === board.id ? 'text-gray-900' : 'text-gray-500'}`} title={t.renameArtboard}>
+                          {board.name}
+                      </span>
+                    )}
+                    
+                    {artboards.length > 1 && editingId !== board.id && (
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteArtboard(board.id);
+                            }}
+                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity"
+                            title={t.deleteArtboard}
+                        >
+                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    )}
+                </div>
+            ))}
+        </div>
+      </div>
+
+      {/* Canvas Preset Section */}
+      <div className="p-4 border-b border-gray-100">
+        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">{t.artboard}</h2>
         <select 
           value={canvasPreset.name}
           onChange={(e) => {
@@ -82,13 +179,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           className="w-full text-sm border-gray-200 rounded-lg p-2 bg-white focus:ring-2 focus:ring-brand-500 outline-none border"
         >
           {presets.map(p => (
-            <option key={p.name} value={p.name}>{p.label} ({p.width}x{p.height})</option>
+            <option key={p.name} value={p.name}>{t.presetLabels[p.name as keyof typeof t.presetLabels] || p.label}</option>
           ))}
         </select>
       </div>
 
       <div className="p-4 border-b border-gray-100">
-        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Tools</h2>
+        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">{t.tools}</h2>
         <div className="grid grid-cols-3 gap-2">
           {tools.map((tool) => (
             <button
@@ -112,7 +209,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       <div className="p-4 border-b border-gray-100 flex-1 overflow-y-auto custom-scrollbar">
         {activeTool === 'brush' && (
           <div className="mb-6">
-            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Brushes</h2>
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">{t.brushes}</h2>
             <div className="grid grid-cols-3 gap-2">
               {brushes.map((b) => (
                 <button
@@ -132,12 +229,12 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           </div>
         )}
 
-        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Properties</h2>
+        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">{t.properties}</h2>
         
         {/* Color Picker */}
         <div className="mb-6">
             <div className="flex justify-between mb-2">
-                <label className="text-sm font-medium text-gray-700">Stroke Color</label>
+                <label className="text-sm font-medium text-gray-700">{t.strokeColor}</label>
                 <span className="text-xs font-mono text-gray-400">{settings.color}</span>
             </div>
             <div className="grid grid-cols-6 gap-2 mb-3">
@@ -161,7 +258,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         {/* Size Slider */}
         <div className="mb-6">
             <div className="flex justify-between mb-2">
-                <label className="text-sm font-medium text-gray-700">Size</label>
+                <label className="text-sm font-medium text-gray-700">{t.size}</label>
                 <span className="text-xs font-medium text-gray-500">{settings.strokeWidth}px</span>
             </div>
             <input 
@@ -177,7 +274,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         {/* Opacity Slider */}
         <div className="mb-6">
             <div className="flex justify-between mb-2">
-                <label className="text-sm font-medium text-gray-700">Opacity</label>
+                <label className="text-sm font-medium text-gray-700">{t.opacity}</label>
                 <span className="text-xs font-medium text-gray-500">{Math.round(settings.opacity * 100)}%</span>
             </div>
             <input 
@@ -203,13 +300,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                     checked={settings.fill !== 'none'}
                     onChange={(e) => onUpdateSettings({ ...settings, fill: e.target.checked ? settings.color : 'none' })}
                 />
-                <span className="text-sm font-medium text-gray-700">Fill Shape</span>
+                <span className="text-sm font-medium text-gray-700">{t.fillShape}</span>
              </label>
         </div>
 
         <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
             <p className="text-xs text-blue-700 leading-relaxed">
-                <strong>Tip:</strong> Use <strong>Eraser</strong> to mask areas. Select tools let you move existing shapes.
+                {t.tip}
             </p>
         </div>
       </div>

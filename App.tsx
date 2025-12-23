@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Editor } from './components/Editor';
 import { Canvas } from './components/Canvas';
 import { Toolbar } from './components/Toolbar';
@@ -6,17 +6,18 @@ import { Library } from './components/Library';
 import { AIPanel } from './components/AIPanel';
 import { ContextMenu } from './components/ContextMenu';
 import { downloadSVG, downloadPNG } from './utils/export';
-import { ToolType, DrawingSettings, CanvasPreset } from './types';
+import { ToolType, DrawingSettings, CanvasPreset, Language, Artboard } from './types';
 import { saveProject, loadProject } from './utils/storage';
 import { useHistory } from './hooks/useHistory';
+import { translations } from './utils/translations';
 
 const PRESETS: CanvasPreset[] = [
-  { name: 'default', width: 800, height: 600, label: 'Default (4:3)' },
-  { name: 'square', width: 800, height: 800, label: 'Square (1:1)' },
-  { name: 'hd', width: 1920, height: 1080, label: 'Full HD (16:9)' },
-  { name: 'a4', width: 595, height: 842, label: 'A4 Paper' },
-  { name: 'mobile', width: 375, height: 812, label: 'Mobile Screen' },
-  { name: 'icon', width: 512, height: 512, label: 'Icon (512px)' },
+  { name: 'default', width: 800, height: 600, label: 'Default' },
+  { name: 'square', width: 800, height: 800, label: 'Square' },
+  { name: 'hd', width: 1920, height: 1080, label: 'Full HD' },
+  { name: 'a4', width: 595, height: 842, label: 'A4' },
+  { name: 'mobile', width: 375, height: 812, label: 'Mobile' },
+  { name: 'icon', width: 512, height: 512, label: 'Icon' },
 ];
 
 const DEFAULT_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
@@ -24,7 +25,23 @@ const DEFAULT_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 60
   <circle cx="400" cy="300" r="100" fill="#3b82f6" />
 </svg>`;
 
+const createNewArtboard = (index: number): Artboard => ({
+    id: crypto.randomUUID(),
+    name: `Untitled ${index}`,
+    content: DEFAULT_SVG,
+    presetName: 'default',
+    createdAt: Date.now()
+});
+
 const App: React.FC = () => {
+  // Language State - Default to 'zh' (Chinese)
+  const [lang, setLang] = useState<Language>('zh');
+  const t = translations[lang];
+
+  // Artboard State
+  const [artboards, setArtboards] = useState<Artboard[]>([]);
+  const [activeArtboardId, setActiveArtboardId] = useState<string>('');
+
   // Use custom history hook instead of simple useState
   const { 
     state: svgCode, 
@@ -58,36 +75,57 @@ const App: React.FC = () => {
   // Auto-save Status
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
 
-  // Load on mount
+  // Initial Load
   useEffect(() => {
     const saved = loadProject();
-    if (saved) {
-        // Reset history to the loaded state
-        resetState(saved);
+    if (saved && saved.length > 0) {
+        setArtboards(saved);
+        setActiveArtboardId(saved[0].id);
+        resetState(saved[0].content);
+        
+        // Restore preset
+        const preset = PRESETS.find(p => p.name === saved[0].presetName) || PRESETS[0];
+        setCurrentPreset(preset);
+    } else {
+        // Initialize with default
+        const initial = createNewArtboard(1);
+        setArtboards([initial]);
+        setActiveArtboardId(initial.id);
+        resetState(initial.content);
     }
-    
-    // Resize handler to adjust layout on orientation change
-    const handleResize = () => {
-       if (window.innerWidth < 1024) {
-           // Optional: auto-collapse on resize to small, but usually better to let user decide after init
-       }
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
   }, [resetState]);
 
-  // Save on change
+  // Sync active drawing to artboard list state
   useEffect(() => {
+    if (!activeArtboardId) return;
+
+    setArtboards(prev => prev.map(b => {
+        if (b.id === activeArtboardId) {
+            // Only update if content changed to avoid unnecessary churn, though simple equality check is cheap for strings
+            if (b.content !== svgCode || b.presetName !== currentPreset.name) {
+                return { ...b, content: svgCode, presetName: currentPreset.name };
+            }
+        }
+        return b;
+    }));
+  }, [svgCode, currentPreset.name, activeArtboardId]);
+
+  // Save to storage when artboards change
+  useEffect(() => {
+    if (artboards.length === 0) return;
     const timer = setTimeout(() => {
-        const success = saveProject(svgCode);
+        const success = saveProject(artboards);
         if (success) setLastSaved(new Date());
     }, 1000); // Debounce save
     return () => clearTimeout(timer);
-  }, [svgCode]);
+  }, [artboards]);
 
   // Keyboard Shortcuts (Undo/Redo)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Input elements should handle their own keys
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
         if (e.shiftKey) {
@@ -113,6 +151,41 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [undo, redo, canUndo, canRedo]);
 
+  // Artboard Actions
+  const handleAddArtboard = () => {
+      const newBoard = createNewArtboard(artboards.length + 1);
+      setArtboards(prev => [...prev, newBoard]);
+      handleSwitchArtboard(newBoard.id, newBoard); // Switch to it
+  };
+
+  const handleSwitchArtboard = useCallback((id: string, directBoard?: Artboard) => {
+      const target = directBoard || artboards.find(b => b.id === id);
+      if (target) {
+          setActiveArtboardId(target.id);
+          resetState(target.content);
+          const preset = PRESETS.find(p => p.name === target.presetName) || PRESETS[0];
+          setCurrentPreset(preset);
+      }
+  }, [artboards, resetState]);
+
+  const handleDeleteArtboard = (id: string) => {
+      if (artboards.length <= 1) return; // Prevent deleting last one
+      
+      const newBoards = artboards.filter(b => b.id !== id);
+      setArtboards(newBoards);
+      
+      if (id === activeArtboardId) {
+          // Switch to the first available
+          handleSwitchArtboard(newBoards[0].id, newBoards[0]);
+      }
+  };
+
+  const handleRenameArtboard = (id: string, newName: string) => {
+    setArtboards(prev => prev.map(b => 
+      b.id === id ? { ...b, name: newName } : b
+    ));
+  };
+
   // Export UI State
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [exportSize, setExportSize] = useState<512 | 1024>(1024);
@@ -130,13 +203,17 @@ const App: React.FC = () => {
   }, []);
 
   const handleDownloadSVG = () => {
-    downloadSVG(svgCode, `orion-x-${Date.now()}.svg`);
+    const activeBoard = artboards.find(b => b.id === activeArtboardId);
+    const name = activeBoard ? activeBoard.name.replace(/\s+/g, '-').toLowerCase() : 'orion-x';
+    downloadSVG(svgCode, `${name}-${Date.now()}.svg`);
   };
 
   const handleDownloadPNG = () => {
     const scale = exportQuality === 'hd' ? 2 : 1;
     const finalSize = exportSize * scale;
-    const filename = `orion-x-${exportSize}x${exportSize}-${exportQuality}-${Date.now()}.png`;
+    const activeBoard = artboards.find(b => b.id === activeArtboardId);
+    const name = activeBoard ? activeBoard.name.replace(/\s+/g, '-').toLowerCase() : 'orion-x';
+    const filename = `${name}-${exportSize}x${exportSize}-${exportQuality}-${Date.now()}.png`;
     downloadPNG(svgCode, finalSize, finalSize, filename);
     setIsExportMenuOpen(false);
   };
@@ -171,6 +248,7 @@ const App: React.FC = () => {
         canUndo={canUndo}
         canRedo={canRedo}
         onClear={handleClearCanvas}
+        t={t}
       />
 
       {/* Header */}
@@ -187,26 +265,37 @@ const App: React.FC = () => {
                 </svg>
             </button>
 
-          <div className="w-10 h-10 bg-brand-600 rounded-xl flex items-center justify-center shadow-lg shadow-brand-500/30 hidden md:flex">
+          <div className="w-10 h-10 bg-brand-600 rounded-xl flex items-center justify-center shadow-lg shadow-brand-500/30 hidden md:flex shrink-0">
             <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z" />
             </svg>
           </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-gray-900 hidden md:block">
+          <div className="flex flex-col justify-center hidden md:flex">
+            <h1 className="text-xl font-bold tracking-tight text-gray-900 leading-none">
               Orion X
             </h1>
+            <span className="text-xs text-gray-500 font-medium tracking-wide mt-1">
+                {t.tagline}
+            </span>
           </div>
         </div>
 
         <div className="flex items-center gap-2 md:gap-4">
+           {/* Language Toggle */}
+           <button 
+             onClick={() => setLang(lang === 'en' ? 'zh' : 'en')}
+             className="px-2 py-1 text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-600 rounded uppercase tracking-wider transition-colors"
+           >
+             {lang === 'en' ? '中文' : 'EN'}
+           </button>
+
            {/* History Controls */}
            <div className="flex items-center bg-gray-100 rounded-lg p-1">
              <button 
                 onClick={undo}
                 disabled={!canUndo}
                 className="p-1.5 rounded-md hover:bg-white hover:shadow-sm text-gray-500 hover:text-gray-900 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none transition-all"
-                title="Undo (Ctrl+Z)"
+                title={`${t.undo} (Ctrl+Z)`}
              >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
@@ -216,7 +305,7 @@ const App: React.FC = () => {
                 onClick={redo}
                 disabled={!canRedo}
                 className="p-1.5 rounded-md hover:bg-white hover:shadow-sm text-gray-500 hover:text-gray-900 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:shadow-none transition-all"
-                title="Redo (Ctrl+Y)"
+                title={`${t.redo} (Ctrl+Y)`}
              >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" />
@@ -231,7 +320,7 @@ const App: React.FC = () => {
                 onClick={handleDownloadSVG}
                 className="hidden md:flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
             >
-                Export SVG
+                {t.exportSvg}
             </button>
             
             <div className="relative" ref={exportMenuRef}>
@@ -242,7 +331,7 @@ const App: React.FC = () => {
                     ? 'bg-brand-50 border-brand-200 text-brand-700' 
                     : 'bg-white hover:bg-gray-50 border-gray-200 text-gray-700'}`}
                 >
-                <span className="hidden md:inline">Export PNG</span>
+                <span className="hidden md:inline">{t.exportPng}</span>
                 <span className="md:hidden">Export</span>
                 <svg className={`w-4 h-4 transition-transform ${isExportMenuOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -252,7 +341,7 @@ const App: React.FC = () => {
                 {isExportMenuOpen && (
                 <div className="absolute right-0 top-full mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-xl p-5 flex flex-col gap-5 z-50">
                     <div>
-                    <label className="text-xs font-bold text-gray-400 mb-2 block uppercase tracking-wider">Size</label>
+                    <label className="text-xs font-bold text-gray-400 mb-2 block uppercase tracking-wider">{t.sizeLabel}</label>
                     <div className="grid grid-cols-2 gap-2">
                         <button 
                         onClick={() => setExportSize(512)}
@@ -276,7 +365,7 @@ const App: React.FC = () => {
                     </div>
 
                     <div>
-                    <label className="text-xs font-bold text-gray-400 mb-2 block uppercase tracking-wider">Quality</label>
+                    <label className="text-xs font-bold text-gray-400 mb-2 block uppercase tracking-wider">{t.qualityLabel}</label>
                     <div className="flex flex-col gap-2">
                         <button 
                         onClick={() => setExportQuality('standard')}
@@ -285,7 +374,7 @@ const App: React.FC = () => {
                             ? 'bg-brand-50 border-brand-500 text-brand-700' 
                             : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'}`}
                         >
-                        <span>Standard Resolution</span>
+                        <span>{t.qualityStandard}</span>
                         <span className="text-gray-400">@1x</span>
                         </button>
                         <button 
@@ -295,7 +384,7 @@ const App: React.FC = () => {
                             ? 'bg-brand-50 border-brand-500 text-brand-700' 
                             : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'}`}
                         >
-                        <span>High Definition (Retina)</span>
+                        <span>{t.qualityHd}</span>
                         <span className="text-brand-600 font-bold">@2x</span>
                         </button>
                     </div>
@@ -306,7 +395,7 @@ const App: React.FC = () => {
                             onClick={handleDownloadPNG}
                             className="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-bold rounded-lg shadow-md transition-all active:scale-95"
                         >
-                            Download Image
+                            {t.exportImage}
                         </button>
                     </div>
                 </div>
@@ -340,8 +429,15 @@ const App: React.FC = () => {
                     canvasPreset={currentPreset}
                     onSelectCanvasPreset={setCurrentPreset}
                     presets={PRESETS}
+                    t={t}
+                    artboards={artboards}
+                    activeArtboardId={activeArtboardId}
+                    onSwitchArtboard={handleSwitchArtboard}
+                    onAddArtboard={handleAddArtboard}
+                    onDeleteArtboard={handleDeleteArtboard}
+                    onRenameArtboard={handleRenameArtboard}
                 />
-                <Library onInsert={handleLibraryInsert} />
+                <Library onInsert={handleLibraryInsert} t={t} />
             </>
         )}
 
@@ -361,9 +457,9 @@ const App: React.FC = () => {
         {showRightPanel && (
             <div className="w-[350px] flex flex-col bg-white border-l border-gray-200 shadow-xl z-20 shrink-0">
             <div className="flex-1 overflow-hidden relative">
-                <Editor code={svgCode} onChange={setSvgCode} />
+                <Editor code={svgCode} onChange={setSvgCode} t={t} />
             </div>
-            <AIPanel currentCode={svgCode} onCodeGenerated={setSvgCode} />
+            <AIPanel currentCode={svgCode} onCodeGenerated={setSvgCode} t={t} />
             </div>
         )}
       </main>

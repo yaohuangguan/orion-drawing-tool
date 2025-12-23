@@ -2,7 +2,9 @@ export type ViewMode = 'split' | 'preview' | 'code';
 
 export type ToolType = 'select' | 'brush' | 'eraser' | 'rect' | 'circle' | 'text';
 
-export type BrushType = 'pen' | 'pencil' | 'marker' | 'chalk' | 'spray' | 'highlighter';
+export type BrushType = 'pen' | 'pencil' | 'marker' | 'chalk' | 'spray' | 'highlighter' | 'watercolor' | 'oil' | 'charcoal';
+
+export type Language = 'en' | 'zh';
 
 export interface CanvasPreset {
   name: string;
@@ -30,4 +32,12 @@ export interface AIRequestState {
   isLoading: boolean;
   error: string | null;
   status: 'idle' | 'thinking' | 'completed' | 'error';
+}
+
+export interface Artboard {
+  id: string;
+  name: string;
+  content: string;
+  presetName: string;
+  createdAt: number;
 }

@@ -53,8 +53,8 @@ Orion X is a powerful, professional SVG creation tool and image generator built 
 ## Tech Stack
 
 - **Frontend**: React 19, TypeScript, Vite
-- **Styling**: Tailwind CSS
-- **AI**: @google/genai SDK (Gemini 3 Pro)
+- **Styling**: Tailwind CSS / Vanilla CSS
+- **AI**: VectorVerse Backend API (Gemini 3 Flash)
 - **State Management**: Custom React Hooks
 
 ## Getting Started
@@ -64,13 +64,13 @@ Orion X is a powerful, professional SVG creation tool and image generator built 
    npm install
    ```
 
-2. **Configure API Key**:
-   Ensure `process.env.API_KEY` is available with a valid Google Gemini API key.
-
-3. **Run Development Server**:
+2. **Run Development Server**:
    ```bash
    npm run dev
    ```
 
+3. **Backend Service**:
+   The application connects to the production VectorVerse API for AI generation. No local Gemini API key is required.
+
 ---
-*Created with Orion X*
+*Created with VectorVerse*
